@@ -95,18 +95,15 @@ def predict_batch(model_path: str, input_file: str, output_file: str = None):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='ORBAT prediction')
+    parser = argparse.ArgumentParser(description='ORBAT prediction - Resource-based identification')
     parser.add_argument('--model', type=str, required=True, help='Path to saved predictor')
     parser.add_argument('--input', type=str, help='Input CSV file for batch prediction')
     parser.add_argument('--output', type=str, help='Output CSV file for batch prediction')
     
-    # Single prediction arguments
-    parser.add_argument('--personnel-count', type=int, help='Personnel count')
-    parser.add_argument('--latitude', type=float, help='Latitude')
-    parser.add_argument('--longitude', type=float, help='Longitude')
-    parser.add_argument('--equipment-score', type=int, help='Equipment score')
-    parser.add_argument('--total-equipment', type=int, help='Total equipment count')
-    parser.add_argument('--dominant-equipment', type=int, help='Dominant equipment type (0-4)')
+    # Single prediction arguments (only essential features)
+    parser.add_argument('--equipment-score', type=int, help='Equipment score (primary identifier)')
+    parser.add_argument('--latitude', type=float, help='Latitude (tiebreaker)')
+    parser.add_argument('--longitude', type=float, help='Longitude (tiebreaker)')
     
     args = parser.parse_args()
     
@@ -116,24 +113,17 @@ if __name__ == '__main__':
     else:
         # Single prediction
         input_data = {}
-        if args.personnel_count is not None:
-            input_data['personnel_count'] = args.personnel_count
+        if args.equipment_score is not None:
+            input_data['equipment_score'] = args.equipment_score
         if args.latitude is not None:
             input_data['latitude'] = args.latitude
         if args.longitude is not None:
             input_data['longitude'] = args.longitude
-        if args.equipment_score is not None:
-            input_data['equipment_score'] = args.equipment_score
-        if args.total_equipment is not None:
-            input_data['total_equipment_count'] = args.total_equipment
-        if args.dominant_equipment is not None:
-            input_data['dominant_equipment_type'] = args.dominant_equipment
         
         if not input_data:
             print("Error: No input data provided. Use --input for batch or provide feature arguments.")
             print("\nExample:")
             print("  python predict.py --model models/orbat_predictor.pkl \\")
-            print("    --personnel-count 600 --latitude 45.5 --longitude 67.8 \\")
-            print("    --equipment-score 250 --total-equipment 50 --dominant-equipment 1")
+            print("    --equipment-score 250 --latitude 45.5 --longitude 67.8")
         else:
             predict_single(args.model, input_data, verbose=True)

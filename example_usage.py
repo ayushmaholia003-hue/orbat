@@ -13,14 +13,11 @@ def example_single_prediction():
     # Load trained predictor
     predictor = ORBATPredictor.load('models/orbat_predictor.pkl')
     
-    # New observation
+    # New observation (only essential features)
     observation = {
-        'personnel_count': 600,
-        'latitude': 45.2345,
-        'longitude': 67.8901,
-        'equipment_score': 250,
-        'total_equipment_count': 50,
-        'dominant_equipment_type': 1  # tank
+        'equipment_score': 250,  # Primary identifier
+        'latitude': 45.2345,     # Tiebreaker
+        'longitude': 67.8901     # Tiebreaker
     }
     
     print("\nInput Observation:")
@@ -42,23 +39,17 @@ def example_batch_prediction():
     # Load trained predictor
     predictor = ORBATPredictor.load('models/orbat_predictor.pkl')
     
-    # Multiple observations
+    # Multiple observations (simplified)
     observations = [
         {
-            'personnel_count': 300,
+            'equipment_score': 300,
             'latitude': 50.0000,
-            'longitude': 70.0000,
-            'equipment_score': 120,
-            'total_equipment_count': 30,
-            'dominant_equipment_type': 3  # radar
+            'longitude': 70.0000
         },
         {
-            'personnel_count': 500,
-            'latitude': 42.5000,
-            'longitude': 65.2500,
             'equipment_score': 180,
-            'total_equipment_count': 40,
-            'dominant_equipment_type': 2  # artillery
+            'latitude': 42.5000,
+            'longitude': 65.2500
         }
     ]
     
@@ -87,25 +78,19 @@ def example_confidence_analysis():
     # Test with varying confidence scenarios
     test_cases = [
         {
-            'name': 'Heavy Armor Unit (Tank Battalion)',
+            'name': 'High Resource Unit',
             'data': {
-                'personnel_count': 600,
+                'equipment_score': 400,
                 'latitude': 45.0000,
-                'longitude': 68.0000,
-                'equipment_score': 280,
-                'total_equipment_count': 55,
-                'dominant_equipment_type': 1  # tank
+                'longitude': 68.0000
             }
         },
         {
-            'name': 'Artillery Unit',
+            'name': 'Low Resource Unit',
             'data': {
-                'personnel_count': 500,
+                'equipment_score': 150,
                 'latitude': 42.5000,
-                'longitude': 75.0000,
-                'equipment_score': 200,
-                'total_equipment_count': 45,
-                'dominant_equipment_type': 2  # artillery
+                'longitude': 75.0000
             }
         }
     ]

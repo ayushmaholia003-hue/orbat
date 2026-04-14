@@ -1,17 +1,24 @@
 # ORBAT Classification System
 
-An intelligent machine learning system for classifying military units (Order of Battle) using hybrid classification and similarity-based approaches.
+A machine learning system for military unit identification based on **resource levels** with **location-based tiebreaking**.
+
+## Core Concept
+
+1. **Primary Identification**: `equipment_score` (high weight)
+   - Units are identified mainly by their resource/equipment levels
+   
+2. **Tiebreaker**: `latitude` + `longitude` (low weight)  
+   - When multiple units have similar equipment scores
+   - Choose the geographically closest unit
 
 ## Features
 
-- **Military Intelligence Features**: Uses 6 realistic features commonly available in ORBAT data
-  - Personnel count, GPS coordinates, equipment score, total equipment, dominant equipment type
-  - Based on actual military intelligence collection methods
-- **Dual Model Architecture**: XGBoost/LightGBM classifier + Similarity matching
-- **Hybrid Prediction**: Combines classification probabilities with similarity scores
-- **Confidence Scoring**: Calibrated confidence metrics with ECE
-- **CSV-Based Workflow**: Easy data upload and batch predictions
-- **Production-Ready**: Comprehensive testing and documentation
+- **Resource-Focused**: Primary identification by equipment score
+- **Location Tiebreaker**: Geographic distance for similar resources  
+- **Large Dataset**: 5000 samples (50 units × 100 observations each)
+- **Realistic Military Names**: Troop1, Squadron2, Regiment3, etc.
+- **Noise Resistant**: Built-in noise to prevent overfitting
+- **Simple & Fast**: Only 3 essential features
 
 ## Quick Start
 
@@ -30,7 +37,7 @@ chmod +x quickstart.sh
 # Install dependencies
 pip install -r requirements.txt
 
-# Generate realistic sample data
+# Generate large realistic dataset
 python generate_realistic_data.py
 
 # Train the system
@@ -56,12 +63,9 @@ python predict.py \
 ```bash
 python predict.py \
   --model models/orbat_predictor.pkl \
-  --personnel-count 600 \
-  --latitude 45.5 \
-  --longitude 68.0 \
   --equipment-score 250 \
-  --total-equipment 50 \
-  --dominant-equipment 1
+  --latitude 45.5 \
+  --longitude 68.0
 ```
 
 **Python API:**
@@ -71,18 +75,16 @@ from src.inference import ORBATPredictor
 # Load trained predictor
 predictor = ORBATPredictor.load('models/orbat_predictor.pkl')
 
-# Predict
+# Predict (only 3 features needed)
 observation = {
-    'personnel_count': 600,
-    'latitude': 45.2345,
-    'longitude': 67.8901,
-    'equipment_score': 250,
-    'total_equipment_count': 50,
-    'dominant_equipment_type': 1  # tank
+    'equipment_score': 250,  # Primary identifier
+    'latitude': 45.2345,     # Tiebreaker
+    'longitude': 67.8901     # Tiebreaker
 }
 
-result = predictor.predict(observation, return_details=True)
-print(result)
+result = predictor.predict(observation)
+print(f"Unit: {result['predicted_unit']}")
+print(f"Confidence: {result['confidence_score']:.3f}")
 ```
 
 ## Project Structure
@@ -112,27 +114,23 @@ print(result)
 
 ### Training Data (CSV)
 ```csv
-personnel_count,latitude,longitude,equipment_score,total_equipment_count,dominant_equipment_type,unit_id
-600,45.2345,67.8901,250,50,1,UNIT_001
-500,42.5000,75.0000,200,45,2,UNIT_002
+equipment_score,latitude,longitude,unit_name
+250,45.2345,67.8901,Troop1
+180,42.5000,75.0000,Squadron2
+400,50.0000,70.0000,Regiment3
 ```
 
 **Features:**
-- `personnel_count`: Total soldiers (50-1000+)
-- `latitude`, `longitude`: GPS coordinates
-- `equipment_score`: Weighted combat power (tank×5 + artillery×4 + missile×4 + radar×3 + infantry×2)
-- `total_equipment_count`: Total equipment items
-- `dominant_equipment_type`: Primary equipment (0=infantry, 1=tank, 2=artillery, 3=radar, 4=missile)
-- `unit_id`: Target variable (what to predict)
+- `equipment_score`: Resource level (primary identifier, high weight)
+- `latitude`, `longitude`: GPS coordinates (tiebreaker, low weight)
+- `unit_name`: Target variable (realistic military names)
 
 ### Test Data (CSV)
 ```csv
-observation_id,personnel_count,latitude,longitude,equipment_score,total_equipment_count,dominant_equipment_type,expected_unit
-OBS_001,600,45.5,68.0,280,55,1,
-OBS_002,300,51.2,71.3,120,30,3,
+observation_id,equipment_score,latitude,longitude,predicted_unit
+OBS_001,250,45.5,68.0,
+OBS_002,180,51.2,71.3,
 ```
-
-**See [SIMPLIFIED_FEATURES.md](SIMPLIFIED_FEATURES.md) for detailed feature specification.**
 
 ## System Architecture
 
@@ -205,11 +203,8 @@ pytest tests/ -v
 
 ## Documentation
 
-- **[SIMPLIFIED_FEATURES.md](SIMPLIFIED_FEATURES.md)**: Feature specification and data format
-- **[GETTING_STARTED.md](GETTING_STARTED.md)**: Step-by-step tutorial for new users
-- **[USAGE_GUIDE.md](USAGE_GUIDE.md)**: Comprehensive usage guide with examples
-- **[ARCHITECTURE.md](ARCHITECTURE.md)**: System architecture and design decisions
-- **[notebooks/training_pipeline.ipynb](notebooks/training_pipeline.ipynb)**: Interactive training walkthrough
+- **README.md**: This file - core concept and usage
+- **notebooks/training_pipeline.ipynb**: Interactive training walkthrough
 
 ## Requirements
 

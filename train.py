@@ -63,30 +63,38 @@ def train_orbat_system(
     
     print(f"  Train: {len(train_df)}, Val: {len(val_df)}, Test: {len(test_df)}")
     
+    # Check target column name
+    target_col = 'unit_name' if 'unit_name' in df.columns else 'unit_id'
+    print(f"  Target column: {target_col}")
+    print(f"  Unique units: {df[target_col].nunique()}")
+    
     # Preprocessing
     print(f"\n[3/8] Preprocessing data...")
     preprocessor = ORBATPreprocessor()
     X_train, y_train = preprocessor.fit_transform(train_df)
-    X_val, y_val = preprocessor.transform(val_df), preprocessor.target_encoder.transform(val_df['unit_id'])
-    X_test, y_test = preprocessor.transform(test_df), preprocessor.target_encoder.transform(test_df['unit_id'])
+    
+    target_col = 'unit_name' if 'unit_name' in val_df.columns else 'unit_id'
+    X_val, y_val = preprocessor.transform(val_df), preprocessor.target_encoder.transform(val_df[target_col])
+    X_test, y_test = preprocessor.transform(test_df), preprocessor.target_encoder.transform(test_df[target_col])
     
     print(f"  Feature dimension: {X_train.shape[1]}")
     print(f"  Number of classes: {len(np.unique(y_train))}")
+    print(f"  Features: {preprocessor.numerical_features}")  # Only numerical now
     
-    # Train classification model
-    print(f"\n[4/8] Training {model_type} classification model...")
+    # Train classification model (resource-focused)
+    print(f"\n[4/8] Training {model_type} classification model (resource-focused)...")
     clf_model = ClassificationModel(model_type=model_type)
     clf_model.train(X_train, y_train, X_val, y_val)
     print("  Classification model trained successfully")
     
-    # Train similarity model
-    print(f"\n[5/8] Training similarity model (metric={similarity_metric})...")
+    # Train similarity model (location-based tiebreaker)
+    print(f"\n[5/8] Training similarity model (location tiebreaker, metric={similarity_metric})...")
     sim_model = SimilarityModel(metric=similarity_metric, n_neighbors=5)
     sim_model.fit(X_train, y_train)
     print("  Similarity model trained successfully")
     
-    # Create hybrid system
-    print(f"\n[6/8] Building hybrid system (alpha={alpha})...")
+    # Create hybrid system (higher alpha for resource focus)
+    print(f"\n[6/8] Building hybrid system (alpha={alpha} - resource focus)...")
     hybrid_system = HybridORBATSystem(clf_model, sim_model, alpha=alpha)
     
     # Calibrate on validation set
@@ -162,7 +170,7 @@ if __name__ == '__main__':
     parser.add_argument('--val-size', type=float, default=0.1, help='Validation set size')
     parser.add_argument('--model', type=str, default='xgboost', choices=['xgboost', 'lightgbm'])
     parser.add_argument('--similarity', type=str, default='cosine', choices=['cosine', 'euclidean'])
-    parser.add_argument('--alpha', type=float, default=0.6, help='Classification weight')
+    parser.add_argument('--alpha', type=float, default=0.8, help='Classification weight (resource focus)')
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
     
     args = parser.parse_args()

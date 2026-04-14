@@ -6,24 +6,24 @@ from .models import ClassificationModel, SimilarityModel
 
 
 class HybridORBATSystem:
-    """Combines classification and similarity for robust predictions."""
+    """Resource-focused prediction with location tiebreaker."""
     
     def __init__(
         self, 
         classification_model: ClassificationModel,
         similarity_model: SimilarityModel,
-        alpha: float = 0.6
+        alpha: float = 0.8  # Higher weight on classification (resource-based)
     ):
-        """Initialize hybrid system.
+        """Initialize hybrid system optimized for resource identification.
         
         Args:
-            classification_model: Trained classification model
-            similarity_model: Trained similarity model
-            alpha: Weight for classification score (1-alpha for similarity)
+            classification_model: Trained classification model (resource-focused)
+            similarity_model: Trained similarity model (location-based tiebreaker)
+            alpha: Weight for classification score (higher = more resource focus)
         """
         self.clf_model = classification_model
         self.sim_model = similarity_model
-        self.alpha = alpha
+        self.alpha = alpha  # Default 0.8 = 80% resource, 20% location
     
     def predict(
         self, 

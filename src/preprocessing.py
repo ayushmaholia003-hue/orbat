@@ -16,19 +16,18 @@ class ORBATPreprocessor:
         self.label_encoders = {}
         self.target_encoder = LabelEncoder()
         self.feature_names = None
-        self.categorical_features = [
-            'dominant_equipment_type'
-        ]
+        self.categorical_features = []  # No categorical features
         self.numerical_features = [
-            'personnel_count', 'latitude', 'longitude', 
-            'equipment_score', 'total_equipment_count'
+            'equipment_score',  # Primary feature (high weight)
+            'latitude',         # Tiebreaker (low weight)  
+            'longitude'         # Tiebreaker (low weight)
         ]
         
     def fit_transform(self, df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray]:
         """Fit preprocessor and transform training data.
         
         Args:
-            df: DataFrame with all features and unit_id target
+            df: DataFrame with all features and unit_name target
             
         Returns:
             X: Transformed feature matrix
@@ -39,8 +38,9 @@ class ORBATPreprocessor:
         # Handle missing values
         df = self._handle_missing_values(df)
         
-        # Encode target variable
-        y = self.target_encoder.fit_transform(df['unit_id'])
+        # Encode target variable (unit_name instead of unit_id)
+        target_col = 'unit_name' if 'unit_name' in df.columns else 'unit_id'
+        y = self.target_encoder.fit_transform(df[target_col])
         
         # Encode categorical features
         encoded_features = []

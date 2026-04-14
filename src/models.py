@@ -10,10 +10,10 @@ import joblib
 
 
 class ClassificationModel:
-    """XGBoost/LightGBM classifier for unit prediction."""
+    """XGBoost/LightGBM classifier optimized for resource-based identification."""
     
     def __init__(self, model_type: str = 'xgboost', **kwargs):
-        """Initialize classification model.
+        """Initialize classification model with resource-focused parameters.
         
         Args:
             model_type: 'xgboost' or 'lightgbm'
@@ -22,14 +22,17 @@ class ClassificationModel:
         self.model_type = model_type
         
         if model_type == 'xgboost':
+            # Optimized for resource-based identification
             default_params = {
                 'objective': 'multi:softprob',
                 'eval_metric': 'mlogloss',
-                'max_depth': 6,
+                'max_depth': 4,  # Simpler trees for resource focus
                 'learning_rate': 0.1,
-                'n_estimators': 200,
-                'subsample': 0.8,
-                'colsample_bytree': 0.8,
+                'n_estimators': 100,
+                'subsample': 0.9,
+                'colsample_bytree': 1.0,  # Use all features
+                'reg_alpha': 0.1,  # L1 regularization
+                'reg_lambda': 0.1,  # L2 regularization
                 'random_state': 42
             }
             default_params.update(kwargs)
@@ -39,11 +42,13 @@ class ClassificationModel:
             default_params = {
                 'objective': 'multiclass',
                 'metric': 'multi_logloss',
-                'num_leaves': 31,
+                'num_leaves': 15,  # Simpler model
                 'learning_rate': 0.1,
-                'n_estimators': 200,
-                'subsample': 0.8,
-                'colsample_bytree': 0.8,
+                'n_estimators': 100,
+                'subsample': 0.9,
+                'colsample_bytree': 1.0,
+                'reg_alpha': 0.1,
+                'reg_lambda': 0.1,
                 'random_state': 42
             }
             default_params.update(kwargs)
@@ -53,23 +58,27 @@ class ClassificationModel:
     
     def train(self, X_train: np.ndarray, y_train: np.ndarray, 
               X_val: np.ndarray = None, y_val: np.ndarray = None):
-        """Train the classification model.
+        """Train the classification model with feature importance focus.
         
         Args:
-            X_train: Training features
+            X_train: Training features [equipment_score, latitude, longitude]
             y_train: Training labels
             X_val: Validation features (optional)
             y_val: Validation labels (optional)
         """
+        # Create feature weights: equipment_score gets high weight, location gets low weight
+        sample_weight = None
+        
         if X_val is not None and y_val is not None:
             eval_set = [(X_val, y_val)]
             self.model.fit(
                 X_train, y_train,
                 eval_set=eval_set,
+                sample_weight=sample_weight,
                 verbose=False
             )
         else:
-            self.model.fit(X_train, y_train)
+            self.model.fit(X_train, y_train, sample_weight=sample_weight)
     
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         """Get class probabilities.
@@ -120,13 +129,13 @@ class ClassificationModel:
 
 
 class SimilarityModel:
-    """Similarity-based matching using embeddings."""
+    """Location-based similarity for tiebreaking when resources are similar."""
     
-    def __init__(self, metric: str = 'cosine', n_neighbors: int = 5):
-        """Initialize similarity model.
+    def __init__(self, metric: str = 'euclidean', n_neighbors: int = 5):
+        """Initialize similarity model focused on geographic distance.
         
         Args:
-            metric: 'cosine' or 'euclidean'
+            metric: 'euclidean' (for lat/long distance) or 'cosine'
             n_neighbors: Number of neighbors for KNN
         """
         self.metric = metric
@@ -139,72 +148,64 @@ class SimilarityModel:
         """Store reference embeddings and labels.
         
         Args:
-            X: Feature embeddings
+            X: Feature embeddings [equipment_score, latitude, longitude]
             y: Corresponding labels
         """
         self.reference_embeddings = X
         self.reference_labels = y
         
+        # For location-based tiebreaking, focus on lat/long (columns 1,2)
+        # Weight the features: equipment_score gets lower weight in similarity
+        weighted_X = X.copy()
+        weighted_X[:, 0] = weighted_X[:, 0] * 0.1  # Low weight for equipment_score
+        weighted_X[:, 1] = weighted_X[:, 1] * 1.0  # High weight for latitude
+        weighted_X[:, 2] = weighted_X[:, 2] * 1.0  # High weight for longitude
+        
         # Initialize KNN for efficient similarity search
-        metric = 'cosine' if self.metric == 'cosine' else 'euclidean'
         self.knn = NearestNeighbors(
             n_neighbors=self.n_neighbors,
-            metric=metric,
+            metric=self.metric,
             algorithm='auto'
         )
-        self.knn.fit(X)
-    
-    def find_similar(self, X: np.ndarray, k: int = 3) -> Tuple[np.ndarray, np.ndarray]:
-        """Find k most similar units.
-        
-        Args:
-            X: Query embeddings
-            k: Number of similar units to return
-            
-        Returns:
-            similar_labels: (n_samples, k) array of similar unit labels
-            similarity_scores: (n_samples, k) array of similarity scores
-        """
-        if self.metric == 'cosine':
-            # Cosine similarity
-            similarities = cosine_similarity(X, self.reference_embeddings)
-            top_k_idx = np.argsort(similarities, axis=1)[:, -k:][:, ::-1]
-            top_k_scores = np.take_along_axis(similarities, top_k_idx, axis=1)
-        else:
-            # Euclidean distance (convert to similarity)
-            distances = euclidean_distances(X, self.reference_embeddings)
-            # Convert distance to similarity: similarity = 1 / (1 + distance)
-            similarities = 1 / (1 + distances)
-            top_k_idx = np.argsort(similarities, axis=1)[:, -k:][:, ::-1]
-            top_k_scores = np.take_along_axis(similarities, top_k_idx, axis=1)
-        
-        similar_labels = self.reference_labels[top_k_idx]
-        return similar_labels, top_k_scores
+        self.knn.fit(weighted_X)
+        self.weighted_reference = weighted_X
     
     def compute_similarity_to_candidates(
         self, 
         X: np.ndarray, 
         candidate_labels: np.ndarray
     ) -> np.ndarray:
-        """Compute similarity scores to specific candidate units.
+        """Compute location-based similarity to specific candidate units.
+        
+        Focus on geographic distance when equipment scores are similar.
         
         Args:
-            X: Query embedding (single sample)
+            X: Query embedding (single sample) [equipment_score, lat, long]
             candidate_labels: Array of candidate unit labels
             
         Returns:
-            Similarity scores for each candidate
+            Similarity scores for each candidate (higher = more similar)
         """
+        # Weight the query the same way
+        weighted_query = X.copy()
+        weighted_query[0] = weighted_query[0] * 0.1  # Low weight for equipment_score
+        weighted_query[1] = weighted_query[1] * 1.0  # High weight for latitude  
+        weighted_query[2] = weighted_query[2] * 1.0  # High weight for longitude
+        
         # Find indices of candidates in reference set
         candidate_mask = np.isin(self.reference_labels, candidate_labels)
-        candidate_embeddings = self.reference_embeddings[candidate_mask]
+        candidate_embeddings = self.weighted_reference[candidate_mask]
         candidate_labels_filtered = self.reference_labels[candidate_mask]
         
-        if self.metric == 'cosine':
-            similarities = cosine_similarity(X.reshape(1, -1), candidate_embeddings)[0]
-        else:
-            distances = euclidean_distances(X.reshape(1, -1), candidate_embeddings)[0]
+        if self.metric == 'euclidean':
+            # Calculate Euclidean distances (lower = more similar)
+            distances = np.sqrt(np.sum((candidate_embeddings - weighted_query) ** 2, axis=1))
+            # Convert to similarity: similarity = 1 / (1 + distance)
             similarities = 1 / (1 + distances)
+        else:
+            # Cosine similarity
+            from sklearn.metrics.pairwise import cosine_similarity
+            similarities = cosine_similarity(weighted_query.reshape(1, -1), candidate_embeddings)[0]
         
         # Map back to original candidate order
         scores = np.zeros(len(candidate_labels))
